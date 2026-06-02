@@ -32,9 +32,20 @@ struct Index {
   @State moleInterval: number = 0;
   @State timerInterval: number = 0;
   @State countdownNum: number = 3;
-  // 新增状态：连击、暂停
-  @State comboCount: number = 0;
+  @State comboCount: number = 0; // 连续打中连击数
   @State isPaused: boolean = false;
+
+  // 屏幕宽度自适应
+  @StorageLink('windowWidth') winWidth: number = 0;
+  isPad(): boolean {
+    return this.winWidth > 600;
+  }
+  getGridSize(): number {
+    return this.isPad() ? 130 : 110;
+  }
+  getFontSize(size: number): number {
+    return this.isPad() ? size * 1.3 : size;
+  }
 
   // 锤子列表
   hammerList: Hammer[] = [
@@ -43,11 +54,11 @@ struct Index {
     { id: 3, name: "雷神锤", icon: "🛠️", color: "#4A90E2", scoreMultiplier: 2.0 }
   ];
 
-  // 关卡配置（三关 + 每关总分）
+  // 关卡配置
   levelConfig: LevelConfig[] = [
-    { time: 30, speed: 1000, maxScore: 300 },  // 关1
-    { time: 30, speed: 800, maxScore: 350 },  // 关2
-    { time: 30, speed: 550, maxScore: 400 }   // 关3
+    { time: 30, speed: 1000, maxScore: 300 },
+    { time: 30, speed: 800, maxScore: 350 },
+    { time: 30, speed: 550, maxScore: 400 }
   ];
 
   build() {
@@ -74,7 +85,7 @@ struct Index {
   loginPage() {
     Column() {
       Text("打地鼠游戏")
-        .fontSize(40)
+        .fontSize(this.getFontSize(40))
         .fontWeight(FontWeight.Bold)
         .fontColor('#E65100')
         .margin({ top: 120, bottom: 60 });
@@ -82,7 +93,7 @@ struct Index {
       TextInput({ placeholder: "请输入用户名" })
         .width('80%')
         .height(50)
-        .fontSize(18)
+        .fontSize(this.getFontSize(18))
         .margin({ bottom: 30 })
         .onChange((val: string) => {
           this.username = val;
@@ -91,7 +102,7 @@ struct Index {
       Button("进入游戏")
         .width('80%')
         .height(55)
-        .fontSize(22)
+        .fontSize(this.getFontSize(22))
         .backgroundColor('#FF9800')
         .borderRadius(12)
         .margin({ bottom: 20 })
@@ -110,7 +121,7 @@ struct Index {
   hammerSelectPage() {
     Column() {
       Text("选择你的锤子")
-        .fontSize(32)
+        .fontSize(this.getFontSize(32))
         .fontWeight(FontWeight.Bold)
         .margin({ top: 80, bottom: 40 });
 
@@ -119,12 +130,12 @@ struct Index {
           GridItem() {
             Column() {
               Text(hammer.icon)
-                .fontSize(60);
+                .fontSize(this.getFontSize(60));
               Text(hammer.name)
-                .fontSize(20)
+                .fontSize(this.getFontSize(20))
                 .margin({ top: 10 });
               Text(`倍率 x${hammer.scoreMultiplier}`)
-                .fontSize(14)
+                .fontSize(this.getFontSize(14))
                 .fontColor('#666');
             }
             .width('90%')
@@ -148,7 +159,7 @@ struct Index {
       Button("开始游戏")
         .width('80%')
         .height(55)
-        .fontSize(22)
+        .fontSize(this.getFontSize(22))
         .backgroundColor('#4CAF50')
         .borderRadius(12)
         .onClick(() => {
@@ -165,7 +176,7 @@ struct Index {
   countdownPage() {
     Column() {
       Text(this.countdownNum.toString())
-        .fontSize(120)
+        .fontSize(this.getFontSize(120))
         .fontWeight(FontWeight.Bold)
         .fontColor('#E53935')
         .animation({ duration: 800, curve: Curve.EaseOut });
@@ -175,57 +186,55 @@ struct Index {
     .justifyContent(FlexAlign.Center);
   }
 
-  // 游戏页（新增底部功能栏）
+  // 游戏页面【关键修改：Grid取消flexGrow，底部连击固定显示】
   @Builder
   gamePage() {
     Column() {
       // 顶部信息栏
       Row() {
         Text(`玩家: ${this.username}`)
-          .fontSize(18)
+          .fontSize(this.getFontSize(18))
           .fontWeight(FontWeight.Bold);
         Text(`关卡: ${this.level}`)
-          .fontSize(18)
+          .fontSize(this.getFontSize(18))
           .fontWeight(FontWeight.Bold)
-          .margin({ left: 20 });
+          .margin({ left: 12 });
         Text(`分数: ${this.score}`)
-          .fontSize(18)
+          .fontSize(this.getFontSize(18))
           .fontWeight(FontWeight.Bold)
-          .margin({ left: 20 });
+          .margin({ left: 12 });
         Text(`时间: ${this.timeLeft}s`)
-          .fontSize(18)
+          .fontSize(this.getFontSize(18))
           .fontWeight(FontWeight.Bold)
-          .margin({ left: 20 });
+          .margin({ left: 12 });
       }
       .width('100%')
       .justifyContent(FlexAlign.Center)
-      .padding(15)
+      .padding(12)
       .backgroundColor('#FFF8E1')
-      .borderRadius({ topLeft: 0, topRight: 0, bottomLeft: 16, bottomRight: 16 });
+      .borderRadius(16);
 
-      // 地鼠洞区域（上半部分）
+      // 3*3地洞网格【删掉flexGrow，不再抢占底部空间】
       Grid() {
         ForEach(this.moleVisible, (show: boolean, index: number) => {
           GridItem() {
             Stack() {
-              // 地鼠洞
               Ellipse()
-                .width(90)
-                .height(45)
+                .width(this.isPad() ? 100 : 80)
+                .height(this.isPad() ? 50 : 40)
                 .backgroundColor('#5D4037')
                 .shadow({ radius: 5, color: '#00000033', offsetX: 0, offsetY: 3 })
                 .position({ bottom: 0 });
 
-              // 地鼠
               if (show && !this.isPaused) {
                 Text("🐭")
-                  .fontSize(50)
-                  .position({ bottom: 45 })
+                  .fontSize(this.getFontSize(50))
+                  .position({ bottom: this.isPad() ? 50 : 45 })
                   .onClick(() => this.hitMole(index));
               }
             }
-            .width(110)
-            .height(110)
+            .width(this.getGridSize())
+            .height(this.getGridSize())
             .alignContent(Alignment.Bottom)
             .backgroundColor('#D7CCC8')
             .borderRadius(16)
@@ -236,77 +245,65 @@ struct Index {
       .columnsTemplate('1fr 1fr 1fr')
       .rowsTemplate('1fr 1fr 1fr')
       .width('92%')
-      .aspectRatio(1)
       .backgroundColor('#8BC34A')
       .borderRadius(20)
       .padding(15)
-      .margin({ top: 30 })
-      .flexGrow(1); // 占满剩余空间
+      .margin({ top: 30 });
 
-      // 底部功能栏（新增）
-      Column() {
-        // 第一行：连击计数
-        Row() {
-          Text(`连击: x${this.comboCount}`)
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#FF5722');
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.Center)
-        .margin({ bottom: 10 });
+      Blank().layoutWeight(1); // 空白占位，把底部控件压在最下面
 
-        // 第二行：锤子展示 + 功能按钮
+      // ==========【连击文字：现在固定在按钮上方，必显示】==========
+      Text(`🔥当前连击倍数：x${this.comboCount}`)
+        .fontSize(this.getFontSize(26))
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#FF3D00')
+        .margin({top:8,bottom:8});
+
+      // 底部按钮栏：锤子信息+暂停+退出
+      Row() {
         Row() {
-          // 当前锤子
-          Row() {
-            Text(this.selectedHammer.icon)
-              .fontSize(30);
-            Column() {
-              Text(this.selectedHammer.name)
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold);
-              Text(`倍率 x${this.selectedHammer.scoreMultiplier}`)
-                .fontSize(12)
-                .fontColor('#666');
-            }
-            .margin({ left: 8 });
+          Text(this.selectedHammer.icon)
+            .fontSize(this.getFontSize(30));
+          Column() {
+            Text(this.selectedHammer.name)
+              .fontSize(this.getFontSize(16))
+              .fontWeight(FontWeight.Bold);
+            Text(`倍率 x${this.selectedHammer.scoreMultiplier}`)
+              .fontSize(this.getFontSize(12))
+              .fontColor('#666');
           }
-          .padding(10)
-          .backgroundColor('#F5F5F5')
-          .borderRadius(10)
-          .flexGrow(1);
-
-          // 暂停/继续按钮
-          Button(this.isPaused ? "继续" : "暂停")
-            .width(80)
-            .height(40)
-            .fontSize(16)
-            .backgroundColor('#2196F3')
-            .borderRadius(8)
-            .margin({ left: 10 })
-            .onClick(() => this.togglePause());
-
-          // 退出按钮
-          Button("退出")
-            .width(80)
-            .height(40)
-            .fontSize(16)
-            .backgroundColor('#F44336')
-            .borderRadius(8)
-            .margin({ left: 10 })
-            .onClick(() => {
-              this.restartGame();
-              this.currentPage = "login";
-            });
+          .margin({ left: 8 });
         }
-        .width('100%')
-        .padding(10);
+        .padding(10)
+        .backgroundColor('#F5F5F5')
+        .borderRadius(10)
+        .flexGrow(1);
+
+        Button(this.isPaused ? "继续" : "暂停")
+          .width(80)
+          .height(40)
+          .fontSize(this.getFontSize(16))
+          .backgroundColor('#2196F3')
+          .borderRadius(8)
+          .margin({ left: 10 })
+          .onClick(() => this.togglePause());
+
+        Button("退出")
+          .width(80)
+          .height(40)
+          .fontSize(this.getFontSize(16))
+          .backgroundColor('#F44336')
+          .borderRadius(8)
+          .margin({ left: 10 })
+          .onClick(() => {
+            this.restartGame();
+            this.currentPage = "login";
+          });
       }
       .width('100%')
+      .padding(12)
       .backgroundColor('#FFFFFF')
-      .borderRadius({ topLeft: 16, topRight: 16, bottomLeft: 0, bottomRight: 0 })
-      .padding(15);
+      .borderRadius({ topLeft: 16, topRight: 16 });
     }
     .width('100%')
     .height('100%');
@@ -317,52 +314,44 @@ struct Index {
   resultPage() {
     Column() {
       if (this.levelFailed) {
-        // 失败页
         Text("😢 关卡失败")
-          .fontSize(36)
+          .fontSize(this.getFontSize(36))
           .fontWeight(FontWeight.Bold)
           .fontColor('#E53935')
           .margin({ top: 100, bottom: 30 });
-
         Text(`需达到本关80%分数才可继续`)
-          .fontSize(20)
+          .fontSize(this.getFontSize(20))
           .margin({ bottom: 10 });
-
         Text(`当前得分: ${this.score}`)
-          .fontSize(20)
+          .fontSize(this.getFontSize(20))
           .margin({ bottom: 40 });
       } else if (this.level > 3) {
-        // 通关页
         Text("🎉 全部通关！")
-          .fontSize(36)
+          .fontSize(this.getFontSize(36))
           .fontWeight(FontWeight.Bold)
           .fontColor('#4CAF50')
           .margin({ top: 100, bottom: 30 });
-
         Text(`最终得分: ${this.score}`)
-          .fontSize(28)
+          .fontSize(this.getFontSize(28))
           .margin({ bottom: 40 });
       } else {
-        // 关卡通过
         Text("✅ 关卡通过")
-          .fontSize(36)
+          .fontSize(this.getFontSize(36))
           .fontWeight(FontWeight.Bold)
           .fontColor('#4CAF50')
           .margin({ top: 100, bottom: 30 });
-
         Text(`进入下一关`)
-          .fontSize(24)
+          .fontSize(this.getFontSize(24))
           .margin({ bottom: 15 });
-
         Text(`得分: ${this.score}`)
-          .fontSize(20)
+          .fontSize(this.getFontSize(20))
           .margin({ bottom: 40 });
       }
 
       Button("重新开始")
         .width('80%')
         .height(55)
-        .fontSize(22)
+        .fontSize(this.getFontSize(22))
         .backgroundColor('#2196F3')
         .borderRadius(12)
         .onClick(() => {
@@ -374,14 +363,14 @@ struct Index {
         Button("下一关")
           .width('80%')
           .height(55)
-          .fontSize(22)
+          .fontSize(this.getFontSize(22))
           .backgroundColor('#FF9800')
           .borderRadius(12)
           .margin({ top: 20 })
           .onClick(() => {
             this.level += 1;
             this.score = 0;
-            this.comboCount = 0;
+            this.comboCount = 0; // 换关卡清空连击
             this.currentPage = "countdown";
             this.startCountdown();
           });
@@ -391,7 +380,6 @@ struct Index {
     .alignItems(HorizontalAlign.Center);
   }
 
-  // 倒计时逻辑
   startCountdown() {
     this.countdownNum = 3;
     let countTimer = setInterval(() => {
@@ -405,18 +393,15 @@ struct Index {
     }, 1000);
   }
 
-  // 开始关卡
   startLevel() {
     const config: LevelConfig = this.levelConfig[this.level - 1];
     this.timeLeft = config.time;
     this.moleVisible = [false, false, false, false, false, false, false, false, false];
     this.isPaused = false;
-    this.comboCount = 0;
-
+    this.comboCount = 0; // 开局连击清零
     clearInterval(this.timerInterval);
     clearInterval(this.moleInterval);
 
-    // 倒计时
     this.timerInterval = setInterval(() => {
       if (!this.isPaused && this.timeLeft > 0) {
         this.timeLeft -= 1;
@@ -427,7 +412,6 @@ struct Index {
       }
     }, 1000);
 
-    // 地鼠随机出现
     this.moleInterval = setInterval(() => {
       if (!this.isPaused) {
         this.moleVisible = this.moleVisible.map(() => false);
@@ -437,48 +421,38 @@ struct Index {
     }, config.speed);
   }
 
-  // 打地鼠
+  // 打中地鼠：连续打中combo+1，地鼠消失重置连击
   hitMole(index: number) {
     if (this.moleVisible[index] && !this.isPaused) {
       let baseScore = 10;
+      // 连击加分，连击越高收益越高
       let comboBonus = Math.min(this.comboCount * 0.1, 0.5);
       let finalScore = Math.floor(baseScore * this.selectedHammer.scoreMultiplier * (1 + comboBonus));
       this.score += finalScore;
-
       this.comboCount += 1;
       this.moleVisible[index] = false;
     }
   }
 
-  // 切换暂停状态
   togglePause() {
     this.isPaused = !this.isPaused;
   }
 
-  // 检查关卡通过（80% 规则）
   checkLevelPass() {
     const config = this.levelConfig[this.level - 1];
     const required = config.maxScore * 0.8;
-
     if (this.score >= required) {
       this.levelFailed = false;
-      if (this.level >= 3) {
-        this.level++;
-        this.currentPage = "result";
-      } else {
-        this.currentPage = "result";
-      }
+      if (this.level >= 3) this.level++;
     } else {
       this.levelFailed = true;
-      this.currentPage = "result";
     }
+    this.currentPage = "result";
   }
 
-  // 重新开始游戏
   restartGame() {
     clearInterval(this.moleInterval);
     clearInterval(this.timerInterval);
-
     this.score = 0;
     this.level = 1;
     this.timeLeft = 30;
