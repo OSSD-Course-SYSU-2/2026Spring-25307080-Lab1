@@ -10,7 +10,7 @@ interface Hammer {
   name: string;
   icon: string;
   color: ResourceColor;
-  scoreMultiplier: number; // 分数加成
+  scoreMultiplier: number;
 }
 
 @Entry
@@ -32,10 +32,13 @@ struct Index {
   @State moleInterval: number = 0;
   @State timerInterval: number = 0;
   @State countdownNum: number = 3;
-  @State comboCount: number = 0; // 连续打中连击数
+  @State comboCount: number = 0;
   @State isPaused: boolean = false;
 
-  // 屏幕宽度自适应
+  // ========== ✅ 新增：地鼠弹出动画高度（真正从洞里冒出来） ==========
+  @State molePopHeight: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+  // 屏幕宽度自适应（一次开发多端部署）
   @StorageLink('windowWidth') winWidth: number = 0;
   isPad(): boolean {
     return this.winWidth > 600;
@@ -186,7 +189,7 @@ struct Index {
     .justifyContent(FlexAlign.Center);
   }
 
-  // 游戏页面【关键修改：Grid取消flexGrow，底部连击固定显示】
+  // 游戏页面（新版：地鼠弹出动画 + 连击显示）
   @Builder
   gamePage() {
     Column() {
@@ -214,11 +217,12 @@ struct Index {
       .backgroundColor('#FFF8E1')
       .borderRadius(16);
 
-      // 3*3地洞网格【删掉flexGrow，不再抢占底部空间】
+      // 3*3地洞网格 + 地鼠弹出动画
       Grid() {
         ForEach(this.moleVisible, (show: boolean, index: number) => {
           GridItem() {
             Stack() {
+              // 地洞
               Ellipse()
                 .width(this.isPad() ? 100 : 80)
                 .height(this.isPad() ? 50 : 40)
@@ -226,10 +230,12 @@ struct Index {
                 .shadow({ radius: 5, color: '#00000033', offsetX: 0, offsetY: 3 })
                 .position({ bottom: 0 });
 
+              // ========== ✅ 地鼠从洞里慢慢冒出来 ==========
               if (show && !this.isPaused) {
                 Text("🐭")
                   .fontSize(this.getFontSize(50))
-                  .position({ bottom: this.isPad() ? 50 : 45 })
+                  .position({ bottom: this.molePopHeight[index] })
+                  .animation({ duration: 300, curve: Curve.EaseOut })
                   .onClick(() => this.hitMole(index));
               }
             }
@@ -250,16 +256,16 @@ struct Index {
       .padding(15)
       .margin({ top: 30 });
 
-      Blank().layoutWeight(1); // 空白占位，把底部控件压在最下面
+      Blank().layoutWeight(1);
 
-      // ==========【连击文字：现在固定在按钮上方，必显示】==========
-      Text(`🔥当前连击倍数：x${this.comboCount}`)
-        .fontSize(this.getFontSize(26))
+      // ========== ✅ 连击提示（永远显示） ==========
+      Text(`🔥 连续连击：x${this.comboCount}`)
+        .fontSize(this.getFontSize(28))
         .fontWeight(FontWeight.Bold)
         .fontColor('#FF3D00')
-        .margin({top:8,bottom:8});
+        .margin({ bottom: 8 });
 
-      // 底部按钮栏：锤子信息+暂停+退出
+      // 底部按钮
       Row() {
         Row() {
           Text(this.selectedHammer.icon)
@@ -370,7 +376,7 @@ struct Index {
           .onClick(() => {
             this.level += 1;
             this.score = 0;
-            this.comboCount = 0; // 换关卡清空连击
+            this.comboCount = 0;
             this.currentPage = "countdown";
             this.startCountdown();
           });
@@ -397,8 +403,9 @@ struct Index {
     const config: LevelConfig = this.levelConfig[this.level - 1];
     this.timeLeft = config.time;
     this.moleVisible = [false, false, false, false, false, false, false, false, false];
+    this.molePopHeight = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     this.isPaused = false;
-    this.comboCount = 0; // 开局连击清零
+    this.comboCount = 0;
     clearInterval(this.timerInterval);
     clearInterval(this.moleInterval);
 
@@ -412,25 +419,38 @@ struct Index {
       }
     }, 1000);
 
+    // 地鼠生成 + 弹出动画逻辑
     this.moleInterval = setInterval(() => {
       if (!this.isPaused) {
+        let lastVisible = this.moleVisible.indexOf(true);
+        if (lastVisible !== -1) {
+          // ========== ✅ 漏打：连击清零 ==========
+          this.comboCount = 0;
+        }
+
         this.moleVisible = this.moleVisible.map(() => false);
+        this.molePopHeight = this.molePopHeight.map(() => 0);
         let randomPos = Math.floor(Math.random() * 9);
         this.moleVisible[randomPos] = true;
+
+        // 地鼠慢慢冒出来
+        setTimeout(() => {
+          this.molePopHeight[randomPos] = this.isPad() ? 50 : 45;
+        }, 50);
       }
     }, config.speed);
   }
 
-  // 打中地鼠：连续打中combo+1，地鼠消失重置连击
+  // 打中地鼠：连击+1，漏打自动清零（你要的逻辑）
   hitMole(index: number) {
     if (this.moleVisible[index] && !this.isPaused) {
       let baseScore = 10;
-      // 连击加分，连击越高收益越高
       let comboBonus = Math.min(this.comboCount * 0.1, 0.5);
       let finalScore = Math.floor(baseScore * this.selectedHammer.scoreMultiplier * (1 + comboBonus));
       this.score += finalScore;
-      this.comboCount += 1;
+      this.comboCount += 1; // 连续打中才+1
       this.moleVisible[index] = false;
+      this.molePopHeight[index] = 0;
     }
   }
 
@@ -460,6 +480,7 @@ struct Index {
     this.gameOver = false;
     this.levelFailed = false;
     this.moleVisible = [false, false, false, false, false, false, false, false, false];
+    this.molePopHeight = [0, 0, 0, 0, 0, 0, 0, 0, 0];
     this.comboCount = 0;
     this.isPaused = false;
   }
